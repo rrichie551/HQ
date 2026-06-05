@@ -11,6 +11,10 @@ RUN npm install --no-audit --no-fund
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Next.js treats /public as optional but the runner stage copies it
+# unconditionally — ensure the directory exists even on fresh clones
+# that have no static assets.
+RUN mkdir -p /app/public
 RUN npx prisma generate
 RUN npm run build
 
