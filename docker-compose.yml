@@ -21,6 +21,9 @@ services:
     depends_on:
       - app
     ports:
-      - "80:80"
+      # Mission Control listens on 4180 to avoid clashing with anything
+      # already bound to :80 (Apache, host nginx, Cloudflare Tunnel, …).
+      # Override here if you want a different one for this client.
+      - "4180:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro

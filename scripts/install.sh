@@ -102,14 +102,14 @@ cat <<EOM
 
 ==============================================================
   Mission Control is live.
-  Dashboard:        http://${IP}/
-  Ingest endpoint:  http://${IP}/api/ingest/{event|draft|agent-comm|memory}
+  Dashboard:        http://${IP}:4180/
+  Ingest endpoint:  http://${IP}:4180/api/ingest/{event|draft|agent-comm|memory}
 
   Configure Hermes with:
-    DASHBOARD_URL=http://${IP}
+    DASHBOARD_URL=http://${IP}:4180
     INGEST_API_KEY=  (the value in this .env)
 
   Slack interactive callback URL:
-    http://${IP}/api/slack/callback
+    http://${IP}:4180/api/slack/callback
 ==============================================================
 EOM
