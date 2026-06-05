@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  role         String
+  icon         String
+  color        String     @default("#C0603C")
+  tint         String     @default("#F6E9E2")
+  status       String     @default("idle")
+  lastActionAt DateTime?
+  uptimeSince  DateTime?
+  createdAt    DateTime   @default(now())
+  events       Event[]
+  drafts       Draft[]
+  commsFrom    AgentComm[] @relation("FromAgent")
+  commsTo      AgentComm[] @relation("ToAgent")
+}
+
+model Event {
+  id           String   @id @default(cuid())
+  agentId      String
+  agent        Agent    @relation(fields: [agentId], references: [id])
+  actionType   String
+  description  String
+  metadata     String?
+  minutesSaved Float    @default(0)
+  revenueEvent Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([agentId])
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+model Draft {
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id])
+  title           String
+  originalMessage String
+  draftText       String
+  editedText      String?
+  priority        String   @default("MED")
+  channel         String
+  status          String   @default("PENDING")
+  approvedAt      DateTime?
+  approvedBy      String?
+  slackMessageTs  String?
+  slackChannelId  String?
+  sentAt          DateTime?
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AgentComm {
+  id          String   @id @default(cuid())
+  fromAgentId String
+  toAgentId   String
+  fromAgent   Agent    @relation("FromAgent", fields: [fromAgentId], references: [id])
+  toAgent     Agent    @relation("ToAgent", fields: [toAgentId], references: [id])
+  topic       String
+  question    String
+  answer      String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model MemorySnapshot {
+  id            String   @id @default(cuid())
+  memoryMdChars Int
+  memoryMdLimit Int      @default(4000)
+  userMdChars   Int
+  userMdLimit   Int      @default(1375)
+  createdAt     DateTime @default(now())
+}
+
+model WeeklyMetrics {
+  id                 String   @id @default(cuid())
+  weekStart          DateTime
+  messagesHandled    Int      @default(0)
+  draftsCreated      Int      @default(0)
+  approvalsCompleted Int      @default(0)
+  avgResponseSecs    Float    @default(0)
+  minutesSaved       Float    @default(0)
+  revenueEvents      Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@unique([weekStart])
+}

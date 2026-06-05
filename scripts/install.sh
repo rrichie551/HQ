@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Mission Control installer — one-command client onboarding.
+# Run from the repo root:  ./scripts/install.sh
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+if [ ! -f .env ]; then
+  echo
+  echo "==> No .env found — let's set one up."
+  echo "    Press ENTER to accept defaults shown in [brackets]."
+  echo
+
+  read -rp "Client name [Darcy's Business]: " CLIENT_NAME
+  CLIENT_NAME=${CLIENT_NAME:-Darcy\'s Business}
+
+  read -rp "Client slug [darcy]: " CLIENT_SLUG
+  CLIENT_SLUG=${CLIENT_SLUG:-darcy}
+
+  read -rp "Owner name [Darcy Mitchell]: " CLIENT_OWNER
+  CLIENT_OWNER=${CLIENT_OWNER:-Darcy Mitchell}
+
+  read -rp "Owner role [Content creator]: " CLIENT_ROLE
+  CLIENT_ROLE=${CLIENT_ROLE:-Content creator}
+
+  read -rp "Timezone [America/Chicago]: " CLIENT_TIMEZONE
+  CLIENT_TIMEZONE=${CLIENT_TIMEZONE:-America/Chicago}
+
+  read -rp "Short TZ label [Chicago]: " CLIENT_TZ_LABEL
+  CLIENT_TZ_LABEL=${CLIENT_TZ_LABEL:-Chicago}
+
+  read -rp "Description [AI-powered ops]: " CLIENT_DESCRIPTION
+  CLIENT_DESCRIPTION=${CLIENT_DESCRIPTION:-AI-powered ops}
+
+  read -rp "Hermes -> Dashboard ingest API key (generate one): " INGEST_API_KEY
+  if [ -z "${INGEST_API_KEY}" ]; then
+    INGEST_API_KEY=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40 || true)
+    echo "    generated: ${INGEST_API_KEY}"
+  fi
+
+  read -rp "Hermes API URL (https://hermes.client.com) [optional]: " HERMES_API_URL
+  read -rp "Hermes API key [optional]: " HERMES_API_KEY
+
+  read -rp "Slack bot token (xoxb-…) [optional]: " SLACK_BOT_TOKEN
+  read -rp "Slack channel ID (Cxxx) [optional]: " SLACK_CHANNEL_ID
+  read -rp "Slack signing secret [optional]: " SLACK_SIGNING_SECRET
+
+  read -srp "Dashboard login password: " DASHBOARD_PASSWORD
+  echo
+
+  NEXTAUTH_SECRET=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48 || true)
+
+  cat > .env <<EOF
+CLIENT_NAME="${CLIENT_NAME}"
+CLIENT_SLUG="${CLIENT_SLUG}"
+CLIENT_OWNER="${CLIENT_OWNER}"
+CLIENT_ROLE="${CLIENT_ROLE}"
+CLIENT_INITIALS="$(echo "${CLIENT_OWNER}" | awk '{for(i=1;i<=NF;i++) printf "%s", toupper(substr($i,1,1));}' | cut -c1-2)"
+CLIENT_TIMEZONE="${CLIENT_TIMEZONE}"
+CLIENT_TZ_LABEL="${CLIENT_TZ_LABEL}"
+CLIENT_DESCRIPTION="${CLIENT_DESCRIPTION}"
+
+INGEST_API_KEY="${INGEST_API_KEY}"
+HERMES_API_URL="${HERMES_API_URL}"
+HERMES_API_KEY="${HERMES_API_KEY}"
+
+SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN}"
+SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID}"
+SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET}"
+
+NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
+NEXTAUTH_URL="http://localhost:3000"
+DASHBOARD_PASSWORD="${DASHBOARD_PASSWORD}"
+
+DATABASE_URL="file:./data/db.sqlite"
+PORT=3000
+EOF
+
+  echo
+  echo "==> Wrote .env"
+fi
+
+mkdir -p data
+
+echo
+echo "==> Building & launching containers"
+docker compose up -d --build
+
+echo
+echo "==> Running database migrations"
+docker compose exec -T app npx prisma migrate deploy
+
+read -rp "Seed with 30 days of demo data? [y/N] " seed
+if [[ "${seed:-N}" =~ ^[Yy]$ ]]; then
+  docker compose exec -T app npm run seed
+fi
+
+IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+IP=${IP:-localhost}
+
+cat <<EOM
+
+==============================================================
+  Mission Control is live.
+  Dashboard:        http://${IP}/
+  Ingest endpoint:  http://${IP}/api/ingest/{event|draft|agent-comm|memory}
+
+  Configure Hermes with:
+    DASHBOARD_URL=http://${IP}
+    INGEST_API_KEY=  (the value in this .env)
+
+  Slack interactive callback URL:
+    http://${IP}/api/slack/callback
+==============================================================
+EOM

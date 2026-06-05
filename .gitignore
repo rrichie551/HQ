@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+build
+.env
+.env.local
+.DS_Store
+data/
+prisma/data/
+*.sqlite
+*.sqlite-journal
+*.tsbuildinfo
+*.log
+.vscode
+.idea
+coverage
+prisma/migrations/dev.db*
