@@ -131,6 +131,15 @@ export function ChatTerminal({ bridgeOk }: { bridgeOk: boolean }) {
   const dot = status === 'open' ? '#22C55E' : status === 'closed' ? '#9CA3AF' : status === 'error' ? '#DC2626' : '#FBBF24';
   const label = status === 'open' ? 'Connected' : status === 'closed' ? 'Disconnected' : status === 'error' ? 'Error' : 'Connecting…';
 
+  // Use minmax(0, …) so each grid track can shrink and never push the
+  // overall grid wider than its parent. Plus width: '100%' + overflow:
+  // hidden on the wrapper, and minWidth: 0 on each grid item.
+  const cols = [
+    showSessions ? 'minmax(0, 220px)' : '0',
+    'minmax(0, 1fr)',
+    showActivity ? 'minmax(0, 300px)' : '0',
+  ].join(' ');
+
   return (
     <div
       className="draft-section"
@@ -140,7 +149,9 @@ export function ChatTerminal({ bridgeOk }: { bridgeOk: boolean }) {
         background: '#1A1D2A',
         border: '1px solid #2A2F40',
         display: 'grid',
-        gridTemplateColumns: `${showSessions ? '220px' : '0'} 1fr ${showActivity ? '300px' : '0'}`,
+        gridTemplateColumns: cols,
+        width: '100%',
+        maxWidth: '100%',
         height: 'calc(100vh - 240px)',
         minHeight: 480,
       }}

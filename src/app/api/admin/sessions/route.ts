@@ -41,36 +41,50 @@ export async function GET() {
 type SessionRow = { id: string; title?: string; timestamp?: string; raw: string };
 
 const ANSI = /\x1b\[[0-9;]*m/g;
-// Session IDs Hermes uses look like a date-stamped 20260606_080045_abc123 form,
-// a cron_<hash>_<datestamp> form, or a ULID-style 20+ char hex. Match the
-// LONGEST such token in the line to avoid grabbing a sub-token (e.g. the
-// '20260606' inside cron_<hash>_20260606_080045 on its own).
 const ID_TOKEN = /\bcron_[0-9a-f]+_\d{8}_\d{6}\b|\b\d{8}_\d{6}(?:_[0-9a-z]+)+\b|\b[0-9a-f]{20,}\b/gi;
 const HEADER = /^(session|id|title|date|time|created|--+|==+|sessions:)/i;
+// Relative timestamps Hermes prints near the front of each row:
+// "6m ago", "1h ago", "16h ago", "yesterday", "2 days ago", "just now"
+const REL_TIME = /\b(\d+\s*(?:s|m|h|d)\s+ago|just\s+now|yesterday|today|\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\b/i;
+// Conversation continuity markers Hermes adds to old session lines
+const PREAMBLE = /\[IMPORTANT:[^\]]*\]\s*/i;
 
 /**
- * Best-effort parser. Hermes' output isn't a stable contract, so we keep
- * each row's raw text and extract:
- *   - id    : longest id-like token in the line (used for --resume)
- *   - title : everything that isn't the id (clipped to 80 chars)
- * We deliberately don't try to guess a separate timestamp — the embedded
- * date inside cron_*_YYYYMMDD_HHMMSS ids made that produce garbage.
+ * Best-effort parser. Hermes' output format isn't a stable contract.
+ * We extract:
+ *   - id        : longest id-like token in the line (used for --resume)
+ *   - timestamp : human-readable relative time if Hermes printed one
+ *   - title     : whatever's left of the line after stripping id +
+ *                 timestamp + [IMPORTANT: …] / "...  preambles
  */
 function parseSessions(stdout: string): SessionRow[] {
   if (!stdout) return [];
   const out: SessionRow[] = [];
-  const lines = stdout.split('\n');
-  for (const rawLine of lines) {
+  for (const rawLine of stdout.split('\n')) {
     const line = rawLine.replace(ANSI, '').trim();
     if (!line) continue;
     if (HEADER.test(line)) continue;
+
     const ids = line.match(ID_TOKEN);
     if (!ids || ids.length === 0) continue;
     const id = ids.reduce((a, b) => (b.length > a.length ? b : a));
-    let title = line.replace(id, '').replace(/\s+/g, ' ').trim();
-    title = title.replace(/^[\s|·•:\-"'`\[\]]+/, '').replace(/[\s"'\[\]]+$/, '').trim();
+
+    const ts = REL_TIME.exec(line)?.[0];
+
+    let title = line.replace(id, ' ');
+    if (ts) title = title.replace(ts, ' ');
+    title = title.replace(PREAMBLE, ' ');
+    // Tidy up: collapse whitespace, strip leading dashes/colons/quotes,
+    // strip dangling open punctuation at the end.
+    title = title
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s|·•:\-—"'`\[\]]+/, '')
+      .replace(/[\s\-"'`\[\(]+$/, '')
+      .trim();
+    if (!title) title = '(no title)';
     if (title.length > 80) title = title.slice(0, 80) + '…';
-    out.push({ id, title: title || undefined, raw: line });
+
+    out.push({ id, title, timestamp: ts, raw: line });
   }
   return out;
 }

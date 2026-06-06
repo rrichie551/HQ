@@ -15,7 +15,7 @@ export default async function AdminChatPage() {
       <Header client={client} attentionCount={0} />
       <AdminNav />
       <div className="main" style={{ display: 'block', overflow: 'auto', padding: '12px 16px 16px' }}>
-        <div style={{ maxWidth: 1600, margin: '0 auto' }}>
+        <div style={{ width: '100%', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
               <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Chat with Hermes</h1>
