@@ -40,36 +40,37 @@ export async function GET() {
 
 type SessionRow = { id: string; title?: string; timestamp?: string; raw: string };
 
-/** Best-effort parser. Hermes' format varies; we extract whatever we can. */
+const ANSI = /\x1b\[[0-9;]*m/g;
+// Session IDs Hermes uses look like a date-stamped 20260606_080045_abc123 form,
+// a cron_<hash>_<datestamp> form, or a ULID-style 20+ char hex. Match the
+// LONGEST such token in the line to avoid grabbing a sub-token (e.g. the
+// '20260606' inside cron_<hash>_20260606_080045 on its own).
+const ID_TOKEN = /\bcron_[0-9a-f]+_\d{8}_\d{6}\b|\b\d{8}_\d{6}(?:_[0-9a-z]+)+\b|\b[0-9a-f]{20,}\b/gi;
+const HEADER = /^(session|id|title|date|time|created|--+|==+|sessions:)/i;
+
+/**
+ * Best-effort parser. Hermes' output isn't a stable contract, so we keep
+ * each row's raw text and extract:
+ *   - id    : longest id-like token in the line (used for --resume)
+ *   - title : everything that isn't the id (clipped to 80 chars)
+ * We deliberately don't try to guess a separate timestamp — the embedded
+ * date inside cron_*_YYYYMMDD_HHMMSS ids made that produce garbage.
+ */
 function parseSessions(stdout: string): SessionRow[] {
   if (!stdout) return [];
   const out: SessionRow[] = [];
   const lines = stdout.split('\n');
-  for (const raw of lines) {
-    const line = raw.replace(/\x1b\[[0-9;]*m/g, '').trim(); // strip ANSI
+  for (const rawLine of lines) {
+    const line = rawLine.replace(ANSI, '').trim();
     if (!line) continue;
-    if (/^(session|id|title|date|time|---)/i.test(line)) continue; // header rows
-    // Try common shapes: "<id>  <title>  <time>" or just "<id>"
-    // ID is usually a UUID-ish or ULID-ish hex/alnum 16+ chars, or
-    // a date-timestamp like 20260606_080011_4fbb4a.
-    const idMatch = line.match(/\b([0-9a-z]{6,}(?:_[0-9a-z]+){0,4})\b/i);
-    if (!idMatch) {
-      // Not a parseable row; skip but keep the raw text accessible upstream
-      continue;
-    }
-    const id = idMatch[1];
-    // Try to find a timestamp (YYYY-MM-DD or YYYYMMDD)
-    const tsMatch = line.match(/\b(\d{4}-?\d{2}-?\d{2}(?:[T_ ]\d{2}:?\d{2}(?::?\d{2})?)?)\b/);
-    const timestamp = tsMatch?.[1];
-    // Title is whatever is left after stripping id and timestamp
-    let title = line
-      .replace(id, '')
-      .replace(timestamp ?? '', '')
-      .replace(/^\s*[|·•:\-]+\s*/, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    if (HEADER.test(line)) continue;
+    const ids = line.match(ID_TOKEN);
+    if (!ids || ids.length === 0) continue;
+    const id = ids.reduce((a, b) => (b.length > a.length ? b : a));
+    let title = line.replace(id, '').replace(/\s+/g, ' ').trim();
+    title = title.replace(/^[\s|·•:\-"'`\[\]]+/, '').replace(/[\s"'\[\]]+$/, '').trim();
     if (title.length > 80) title = title.slice(0, 80) + '…';
-    out.push({ id, title: title || undefined, timestamp, raw: line });
+    out.push({ id, title: title || undefined, raw: line });
   }
   return out;
 }
