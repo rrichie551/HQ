@@ -51,7 +51,12 @@ export function AvatarMenu({ initials, name }: { initials: string; name: string 
             </div>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={() => {
+              // Use the current page's origin so we never redirect to a
+              // stale NEXTAUTH_URL (e.g. localhost) baked at install time.
+              const callback = `${window.location.origin}/login`;
+              signOut({ callbackUrl: callback });
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',

@@ -59,6 +59,18 @@ if [ ! -f .env ]; then
     echo "    note: ${HERMES_DIR} doesn't exist yet — admin UI will show 'not installed' until Hermes is set up."
   fi
 
+  # NEXTAUTH_URL must match the URL the *browser* will load the dashboard at,
+  # otherwise next-auth issues redirects to the wrong host (e.g. localhost)
+  # and sign-out / sign-in callbacks 404. Auto-detect the public IP as a
+  # default; the user can override if they already have a domain.
+  DEFAULT_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  DEFAULT_IP=${DEFAULT_IP:-localhost}
+  DEFAULT_NEXTAUTH_URL="http://${DEFAULT_IP}:4180"
+  read -rp "Public dashboard URL the client will open [${DEFAULT_NEXTAUTH_URL}]: " NEXTAUTH_URL_INPUT
+  NEXTAUTH_URL="${NEXTAUTH_URL_INPUT:-${DEFAULT_NEXTAUTH_URL}}"
+  # Strip a trailing slash so next-auth doesn't double it.
+  NEXTAUTH_URL="${NEXTAUTH_URL%/}"
+
   NEXTAUTH_SECRET=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48 || true)
 
   cat > .env <<EOF
@@ -80,7 +92,7 @@ SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID}"
 SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET}"
 
 NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
-NEXTAUTH_URL="http://localhost:4180"
+NEXTAUTH_URL="${NEXTAUTH_URL}"
 DASHBOARD_PASSWORD="${DASHBOARD_PASSWORD}"
 OWNER_PASSWORD="${OWNER_PASSWORD}"
 
