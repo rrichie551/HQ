@@ -39,19 +39,52 @@ function bridgeWsUrl(query: string): string {
   return u.toString();
 }
 
-async function isOwnerRequest(req: IncomingMessage): Promise<boolean> {
-  try {
-    // next-auth's getToken reads the next-auth JWT cookie from the request.
-    const token = await getToken({
-      req: req as any,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    if (!token) return false;
-    const role = (token as any).role;
-    return role === 'owner';
-  } catch {
-    return false;
+/** Parse a cookie header string into a key→value map. */
+function parseCookies(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const pair of header.split(';')) {
+    const idx = pair.indexOf('=');
+    if (idx < 0) continue;
+    const k = pair.slice(0, idx).trim();
+    const v = pair.slice(idx + 1).trim();
+    if (!k) continue;
+    try { out[decodeURIComponent(k)] = decodeURIComponent(v); }
+    catch { out[k] = v; }
   }
+  return out;
+}
+
+async function isOwnerRequest(req: IncomingMessage): Promise<{ ok: boolean; reason: string; tokenKeys?: string[]; role?: string }> {
+  const cookies = parseCookies(req.headers.cookie);
+  // Augment the request so getToken can find req.cookies even when called
+  // from the raw http.IncomingMessage (Next.js parses these, we don't).
+  const augmented = { headers: req.headers, cookies } as any;
+
+  // Cookie name depends on whether NEXTAUTH_URL is https. Try both — useful
+  // when NEXTAUTH_URL doesn't match the actual protocol the user is on.
+  const candidates = ['next-auth.session-token', '__Secure-next-auth.session-token'];
+  const presentCookies = Object.keys(cookies).filter((k) => k.includes('session-token'));
+
+  for (const cookieName of candidates) {
+    if (!cookies[cookieName]) continue;
+    try {
+      const token = await getToken({
+        req: augmented,
+        secret: process.env.NEXTAUTH_SECRET,
+        cookieName,
+      });
+      if (!token) {
+        return { ok: false, reason: `getToken returned null for ${cookieName}`, tokenKeys: presentCookies };
+      }
+      const role = (token as any).role;
+      if (role === 'owner') return { ok: true, reason: 'role=owner', role };
+      return { ok: false, reason: `role=${role ?? 'undefined'}`, tokenKeys: Object.keys(token), role };
+    } catch (e) {
+      return { ok: false, reason: `getToken threw: ${(e as Error).message}`, tokenKeys: presentCookies };
+    }
+  }
+  return { ok: false, reason: `no session-token cookie present (saw ${Object.keys(cookies).join(', ')})` };
 }
 
 app
@@ -102,10 +135,9 @@ app
         return;
       }
 
-      const cookieHead = (req.headers.cookie ?? '').slice(0, 60).replace(/[^\w=,. ;%-]/g, '?');
-      const isOwner = await isOwnerRequest(req);
-      tlog('auth check', { isOwner, cookiePresent: !!req.headers.cookie, cookieHead });
-      if (!isOwner) {
+      const auth = await isOwnerRequest(req);
+      tlog('auth check', auth);
+      if (!auth.ok) {
         tlog('rejecting: not owner -> 403');
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
