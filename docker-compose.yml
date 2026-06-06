@@ -9,8 +9,16 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # Inside the container, Hermes' files are mounted at /hermes.
+      # We override HERMES_DIR so the admin UI reads the mounted path.
+      - HERMES_DIR=/hermes
     volumes:
       - ./data:/app/data
+      # Mount the host's Hermes install read-write so /admin can manage it.
+      # HERMES_DIR is set in .env (defaults to /root/.hermes for typical
+      # single-VPS installs). Falls back gracefully if the path doesn't exist —
+      # the admin UI will just show an empty/uninstalled state.
+      - ${HERMES_DIR:-/root/.hermes}:/hermes
     expose:
       - "3000"
 

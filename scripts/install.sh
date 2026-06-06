@@ -45,8 +45,19 @@ if [ ! -f .env ]; then
   read -rp "Slack channel ID (Cxxx) [optional]: " SLACK_CHANNEL_ID
   read -rp "Slack signing secret [optional]: " SLACK_SIGNING_SECRET
 
-  read -srp "Dashboard login password: " DASHBOARD_PASSWORD
+  read -srp "Dashboard login password (for the client): " DASHBOARD_PASSWORD
   echo
+  read -srp "Owner password (you — unlocks /admin): " OWNER_PASSWORD
+  echo
+
+  # Detect where Hermes is installed on this host (defaults to the home of
+  # whoever ran install.sh — usually ~/.hermes).
+  DEFAULT_HERMES_DIR="${HOME}/.hermes"
+  read -rp "Path to Hermes install on this host [${DEFAULT_HERMES_DIR}]: " HERMES_DIR_INPUT
+  HERMES_DIR="${HERMES_DIR_INPUT:-${DEFAULT_HERMES_DIR}}"
+  if [ ! -d "${HERMES_DIR}" ]; then
+    echo "    note: ${HERMES_DIR} doesn't exist yet — admin UI will show 'not installed' until Hermes is set up."
+  fi
 
   NEXTAUTH_SECRET=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48 || true)
 
@@ -69,8 +80,11 @@ SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID}"
 SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET}"
 
 NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="http://localhost:4180"
 DASHBOARD_PASSWORD="${DASHBOARD_PASSWORD}"
+OWNER_PASSWORD="${OWNER_PASSWORD}"
+
+HERMES_DIR="${HERMES_DIR}"
 
 DATABASE_URL="file:./data/db.sqlite"
 PORT=3000

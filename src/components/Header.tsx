@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { Icon } from './Icon';
 import { StatusPill } from './StatusPill';
+import { NotificationBell } from './NotificationBell';
 import type { ClientConfig } from '@/lib/client-config';
 
 function Clock({ tz, label }: { tz: string; label: string }) {
@@ -25,6 +27,9 @@ function Clock({ tz, label }: { tz: string; label: string }) {
 }
 
 export function Header({ client, attentionCount, notifications = 0 }: { client: ClientConfig; attentionCount: number; notifications?: number }) {
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as 'owner' | 'client' | undefined;
+
   return (
     <header className="header">
       <div className="brand">
@@ -41,11 +46,13 @@ export function Header({ client, attentionCount, notifications = 0 }: { client: 
         <StatusPill attentionCount={attentionCount} />
       </div>
       <div className="header-right">
+        {role === 'owner' && (
+          <Link href="/admin" className="fchip desktop-only" style={{ background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}>
+            <Icon name="lock" style={{ width: 12, height: 12 }} /> Admin
+          </Link>
+        )}
         <Clock tz={client.timezone} label={client.tzLabel} />
-        <button className="icon-btn" aria-label="Notifications">
-          <Icon name="bell" />
-          {notifications > 0 && <span className="bell-badge">{notifications}</span>}
-        </button>
+        <NotificationBell initialCount={notifications} />
         <div className="avatar-initials" title={client.owner}>{client.initials}</div>
       </div>
     </header>

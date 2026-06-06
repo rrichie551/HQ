@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { getClientConfig } from '@/lib/client-config';
+import { SessionProviderWrapper } from '@/components/SessionProviderWrapper';
 
 export const metadata: Metadata = {
   title: 'Mission Control · First Word Read',
@@ -21,7 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
         <title>{`Mission Control · ${client.name}`}</title>
       </head>
-      <body>{children}</body>
+      <body>
+        <SessionProviderWrapper>{children}</SessionProviderWrapper>
+      </body>
     </html>
   );
 }
