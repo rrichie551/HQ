@@ -61,3 +61,60 @@ export async function setCronEnabled(cronId: string, enabled: boolean): Promise<
   }
   return { ok: true, cronId, stdout: r.stdout };
 }
+
+/* ───────────── listing & importing existing crons ───────────── */
+
+export type DiscoveredCron = {
+  cronId: string;
+  schedule?: string;
+  task?: string;
+  raw: string;
+};
+
+const ANSI = /\x1b\[[0-9;]*m/g;
+// Header rows we want to skip
+const HEADER_RE = /^(id|cron|task|schedule|name|last|created|status|--+|==+|cronjobs?:|crons?:)/i;
+// Best-effort splitter between "schedule" and "task": colon, en/em dash, pipe
+const SPLIT_RE = /^(.*?)\s*[:\-–—|]\s*(.+)$/;
+
+/**
+ * Parse the output of `hermes cron list` best-effort. We anchor on the
+ * cron_<hex>_<datestamp>_<time> id token and take the rest of the line
+ * as the description; we then try to split that into schedule + task on
+ * the first colon/dash/pipe.
+ *
+ * Hermes' output format isn't a stable contract, so the UI keeps the raw
+ * text in case parsing missed something — the owner can edit afterward.
+ */
+export function parseCronList(stdout: string): DiscoveredCron[] {
+  if (!stdout) return [];
+  const out: DiscoveredCron[] = [];
+  for (const rawLine of stdout.split('\n')) {
+    const line = rawLine.replace(ANSI, '').trim();
+    if (!line || HEADER_RE.test(line)) continue;
+    const m = CRON_ID.exec(line);
+    if (!m) continue;
+    const cronId = m[0];
+    let rest = line.replace(cronId, ' ').replace(/\s+/g, ' ').trim();
+    rest = rest.replace(/^[\s|·•:\-—"'`\[\]]+/, '').replace(/[\s"'\[\]]+$/, '').trim();
+    let schedule: string | undefined;
+    let task: string | undefined;
+    const split = SPLIT_RE.exec(rest);
+    if (split) {
+      schedule = split[1].trim() || undefined;
+      task = split[2].trim() || undefined;
+    } else {
+      task = rest || undefined;
+    }
+    out.push({ cronId, schedule, task, raw: line });
+  }
+  return out;
+}
+
+export async function listCrons(): Promise<{ ok: boolean; crons: DiscoveredCron[]; raw_stdout: string; error?: string }> {
+  const health = await bridgeHealth();
+  if (!health.ok) return { ok: false, crons: [], raw_stdout: '', error: `bridge offline: ${health.error ?? 'unreachable'}` };
+  const r = await bridgeExec('cron', ['list']);
+  if (!r.ok) return { ok: false, crons: [], raw_stdout: r.stdout, error: r.stderr || `hermes cron list exited with code ${r.code}` };
+  return { ok: true, crons: parseCronList(r.stdout), raw_stdout: r.stdout };
+}

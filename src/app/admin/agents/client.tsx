@@ -108,10 +108,16 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <button className="btn btn-primary" onClick={() => { setEditing(blankAgent()); setCreating(true); }} style={{ flex: 'none' }}>
           <Icon name="check" /> New agent
         </button>
+        <SyncFromHermes onSynced={(rows) => {
+          if (rows.length === 0) return;
+          // Refresh the page so the new agents show up
+          setNote(`Imported ${rows.length} agent${rows.length === 1 ? '' : 's'} from Hermes — reloading.`);
+          setTimeout(() => location.reload(), 800);
+        }} />
         <span style={{ color: 'var(--text-3)', fontSize: 12, alignSelf: 'center', marginLeft: 4 }}>or start from a template:</span>
         {STARTERS.map((s) => (
           <button
@@ -187,6 +193,44 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
 
 function blankAgent(): Agent {
   return { slug: '', name: '', role: '', icon: 'activity', color: '#C0603C', tint: '#F6E9E2', status: 'idle', schedule: '', task: '', skill: '', enabled: true };
+}
+
+function SyncFromHermes({ onSynced }: { onSynced: (rows: { slug: string; name: string; cronId: string }[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function sync() {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch('/api/admin/agents/sync', { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        setErr(j.error ?? `HTTP ${res.status}`);
+        setBusy(false);
+        return;
+      }
+      const rows: { slug: string; name: string; cronId: string }[] = j.importedRows ?? [];
+      if (rows.length === 0 && j.discovered === 0) {
+        setErr('Hermes returned no crons (bridge may be offline).');
+      } else if (rows.length === 0) {
+        setErr(`Found ${j.discovered} cron${j.discovered === 1 ? '' : 's'}, all already imported.`);
+      }
+      onSynced(rows);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <button className="btn btn-outline" onClick={sync} disabled={busy} title="Scan hermes cron list and import anything not tracked yet" style={{ flex: 'none' }}>
+        {busy ? 'Scanning…' : '↻ Sync from Hermes'}
+      </button>
+      {err && <span style={{ fontSize: 11, color: 'var(--text-2)' }}>{err}</span>}
+    </div>
+  );
 }
 
 function slugify(s: string): string {
