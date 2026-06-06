@@ -29,6 +29,12 @@ model Agent {
   cronId       String?
   enabled      Boolean    @default(true)
 
+  // When true, drafts go through PENDING → owner approves → SENT
+  // (the kanban "Needs Attention" lane). When false (default for autonomous
+  // crons), outputs land directly in "Completed" with status=COMPLETED —
+  // no approval gate, no Slack ping.
+  requiresApproval Boolean @default(false)
+
   createdAt    DateTime   @default(now())
   events       Event[]
   drafts       Draft[]

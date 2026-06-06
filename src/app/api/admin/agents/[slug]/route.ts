@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
   if (auth) return auth;
   const body = (await req.json().catch(() => null)) as Partial<{
     name: string; role: string; icon: string; color: string; tint: string; status: string;
-    schedule: string; task: string; skill: string; enabled: boolean;
+    schedule: string; task: string; skill: string; enabled: boolean; requiresApproval: boolean;
   }> | null;
   if (!body) return NextResponse.json({ error: 'invalid body' }, { status: 400 });
 
@@ -71,6 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       task: body.task,
       skill: body.skill,
       enabled: body.enabled,
+      requiresApproval: body.requiresApproval,
       cronId: cron?.ok && cron.cronId ? cron.cronId : cronRebuild ? null : current.cronId,
     },
   });

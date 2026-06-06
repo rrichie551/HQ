@@ -23,7 +23,7 @@ export async function loadDashboardData() {
     }),
     prisma.memorySnapshot.findFirst({ orderBy: { createdAt: 'desc' } }),
     prisma.draft.findMany({
-      where: { status: { in: ['APPROVED', 'SENT', 'REJECTED'] } },
+      where: { status: { in: ['APPROVED', 'SENT', 'REJECTED', 'COMPLETED'] } },
       include: { agent: true },
       orderBy: { approvedAt: 'desc' },
       take: 12,
@@ -60,7 +60,11 @@ export async function loadDashboardData() {
     time: d.approvedAt
       ? d.approvedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
       : d.createdAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    outcome: d.status === 'SENT' ? 'Approved · sent' : d.status === 'APPROVED' ? 'Approved' : 'Rejected',
+    outcome:
+      d.status === 'COMPLETED' ? 'Auto · completed' :
+      d.status === 'SENT' ? 'Approved · sent' :
+      d.status === 'APPROVED' ? 'Approved' :
+      'Rejected',
   }));
 
   const feed = recentEvents.slice(0, 30).map((e) => {

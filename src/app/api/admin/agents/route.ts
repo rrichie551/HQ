@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (auth) return auth;
   const body = (await req.json().catch(() => null)) as Partial<{
     slug: string; name: string; role: string; icon: string; color: string; tint: string;
-    schedule: string; task: string; skill: string;
+    schedule: string; task: string; skill: string; requiresApproval: boolean;
     scaffold: boolean;
   }> | null;
   if (!body?.slug || !body.name) return NextResponse.json({ error: 'slug and name required' }, { status: 400 });
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       schedule: body.schedule ?? null,
       task: body.task ?? null,
       skill: body.skill ?? null,
+      requiresApproval: body.requiresApproval ?? false,
     },
     create: {
       slug: body.slug,
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       schedule: body.schedule ?? null,
       task: body.task ?? null,
       skill: body.skill ?? null,
+      requiresApproval: body.requiresApproval ?? false,
     },
   });
 

@@ -17,6 +17,7 @@ type Agent = {
   skill?: string | null;
   cronId?: string | null;
   enabled?: boolean;
+  requiresApproval?: boolean;
 };
 
 const ICON_OPTIONS = ['mail', 'calendar', 'chat', 'brain', 'activity', 'inbox'];
@@ -162,6 +163,18 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
               </div>
             )}
 
+            <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {a.requiresApproval ? (
+                <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 4, background: 'var(--attention-tint)', color: '#B45309', fontWeight: 700, letterSpacing: '.04em' }}>
+                  APPROVAL
+                </span>
+              ) : (
+                <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 4, background: 'var(--running-tint)', color: '#15803D', fontWeight: 700, letterSpacing: '.04em' }}>
+                  AUTONOMOUS
+                </span>
+              )}
+            </div>
+
             <div className="agent-bottom" style={{ marginTop: 10, paddingTop: 10 }}>
               <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'monospace' }}>
                 {a.slug}
@@ -288,6 +301,25 @@ function AgentEditor({ agent, isNew, onSave, onClose }: {
           <Row label="Skill to invoke (optional)">
             <input value={a.skill ?? ''} onChange={(e) => set('skill', e.target.value)} placeholder="(blank = Hermes picks)" />
             <Hint>Name of a file under <code>~/.hermes/skills/</code>, without the extension.</Hint>
+          </Row>
+
+          <Row label="Routing">
+            <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+              <label style={{ flex: 1, padding: 12, borderRadius: 8, border: `2px solid ${!a.requiresApproval ? 'var(--accent)' : 'var(--border)'}`, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <input type="radio" name="routing" checked={!a.requiresApproval} onChange={() => set('requiresApproval', false)} style={{ marginTop: 2, width: 'auto' }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 650 }}>Autonomous</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 2 }}>Output goes straight to Completed. No approval gate. Use for reports, summaries, monitoring.</div>
+                </div>
+              </label>
+              <label style={{ flex: 1, padding: 12, borderRadius: 8, border: `2px solid ${a.requiresApproval ? 'var(--accent)' : 'var(--border)'}`, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <input type="radio" name="routing" checked={!!a.requiresApproval} onChange={() => set('requiresApproval', true)} style={{ marginTop: 2, width: 'auto' }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 650 }}>Requires approval</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 2 }}>Drafts queue in &quot;Needs Attention&quot; and ping Slack. Use for customer-facing replies.</div>
+                </div>
+              </label>
+            </div>
           </Row>
 
           <button type="button" onClick={() => setAdvanced((x) => !x)} style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', textAlign: 'left', padding: 0 }}>

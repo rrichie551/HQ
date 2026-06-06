@@ -17,18 +17,17 @@ export function InstallApprovalSkillButton() {
       setResult({ ok: false, msg: j.error ?? `HTTP ${res.status}` });
       return;
     }
-    setResult({
-      ok: true,
-      msg: j.alreadyExisted
-        ? `Refreshed: ${j.path}`
-        : `Installed: ${j.path}`,
-    });
+    // New shape returns { paths: string[], alreadyExisted: boolean[] }
+    const paths: string[] = j.paths ?? (j.path ? [j.path] : []);
+    const existed: boolean[] = j.alreadyExisted ?? [];
+    const lines = paths.map((p, i) => `${existed[i] ? 'Refreshed' : 'Installed'}: ${p}`);
+    setResult({ ok: true, msg: lines.join(' · ') });
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <button className="btn btn-primary" onClick={install} disabled={busy} style={{ flex: 'none' }}>
-        <Icon name="check" /> {busy ? 'Installing…' : 'Install approval skill'}
+        <Icon name="check" /> {busy ? 'Installing…' : 'Install routing skills'}
       </button>
       {result && (
         <div style={{
