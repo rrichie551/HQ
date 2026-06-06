@@ -10,8 +10,8 @@ export type ClientConfig = {
 };
 
 export function getClientConfig(): ClientConfig {
-  const name = process.env.CLIENT_NAME ?? "Darcy's Business";
-  const owner = process.env.CLIENT_OWNER ?? 'Darcy Mitchell';
+  const name = process.env.CLIENT_NAME ?? 'Acme Co';
+  const owner = process.env.CLIENT_OWNER ?? 'Sample Client';
   return {
     name,
     slug: process.env.CLIENT_SLUG ?? 'client',

@@ -27,7 +27,7 @@ a secure webhook API. Slack is used for notifications and approval shortcuts onl
 
 ```bash
 # clone the repo into a fresh directory
-git clone <this-repo> mission-control-darcy && cd mission-control-darcy
+git clone <this-repo> mission-control-<client> && cd mission-control-<client>
 
 # one-command install (prompts for env, then `docker compose up`)
 ./scripts/install.sh

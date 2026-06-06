@@ -11,14 +11,14 @@ if [ ! -f .env ]; then
   echo "    Press ENTER to accept defaults shown in [brackets]."
   echo
 
-  read -rp "Client name [Darcy's Business]: " CLIENT_NAME
-  CLIENT_NAME=${CLIENT_NAME:-Darcy\'s Business}
+  read -rp "Client name [Acme Co]: " CLIENT_NAME
+  CLIENT_NAME=${CLIENT_NAME:-Acme Co}
 
-  read -rp "Client slug [darcy]: " CLIENT_SLUG
-  CLIENT_SLUG=${CLIENT_SLUG:-darcy}
+  read -rp "Client slug [acme]: " CLIENT_SLUG
+  CLIENT_SLUG=${CLIENT_SLUG:-acme}
 
-  read -rp "Owner name [Darcy Mitchell]: " CLIENT_OWNER
-  CLIENT_OWNER=${CLIENT_OWNER:-Darcy Mitchell}
+  read -rp "Owner name [Sample Client]: " CLIENT_OWNER
+  CLIENT_OWNER=${CLIENT_OWNER:-Sample Client}
 
   read -rp "Owner role [Content creator]: " CLIENT_ROLE
   CLIENT_ROLE=${CLIENT_ROLE:-Content creator}
