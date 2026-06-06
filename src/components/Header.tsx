@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { Icon } from './Icon';
 import { StatusPill } from './StatusPill';
 import { NotificationBell } from './NotificationBell';
+import { AvatarMenu } from './AvatarMenu';
 import type { ClientConfig } from '@/lib/client-config';
 
 function Clock({ tz, label }: { tz: string; label: string }) {
@@ -53,7 +54,7 @@ export function Header({ client, attentionCount, notifications = 0 }: { client: 
         )}
         <Clock tz={client.timezone} label={client.tzLabel} />
         <NotificationBell initialCount={notifications} />
-        <div className="avatar-initials" title={client.owner}>{client.initials}</div>
+        <AvatarMenu initials={client.initials} name={client.owner} />
       </div>
     </header>
   );
