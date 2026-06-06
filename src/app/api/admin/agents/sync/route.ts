@@ -28,20 +28,15 @@ function styleForCronId(id: string) {
   return PALETTE[h % PALETTE.length];
 }
 
-/** Derive a slug from the task (first words) or the cron id as fallback. */
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+
+/** Slug priority: Hermes' Name field → task first words → short cron id. */
 function deriveSlug(c: DiscoveredCron, existingSlugs: Set<string>): string {
   let base = '';
-  if (c.task) {
-    base = c.task
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .split('-')
-      .slice(0, 5)
-      .join('-')
-      .slice(0, 40);
-  }
-  if (!base) base = `cron-${c.cronId.replace(/^cron_/, '').slice(0, 12)}`;
+  if (c.name) base = slugify(c.name);
+  if (!base && c.task) base = slugify(c.task).split('-').slice(0, 5).join('-');
+  if (!base) base = `cron-${c.cronId.slice(0, 12)}`;
   let candidate = base;
   let n = 2;
   while (existingSlugs.has(candidate)) candidate = `${base}-${n++}`.slice(0, 48);
@@ -49,8 +44,14 @@ function deriveSlug(c: DiscoveredCron, existingSlugs: Set<string>): string {
   return candidate;
 }
 
-/** Derive a display name from the task (first few words, title-cased). */
+/** Display-name priority: Name (title-cased) → task first words → short cron id. */
 function deriveName(c: DiscoveredCron): string {
+  if (c.name) {
+    return c.name
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase())
+      .slice(0, 50);
+  }
   if (c.task) {
     const words = c.task.replace(/[—–|:]/g, ' ').split(/\s+/).slice(0, 5);
     if (words.length) {
@@ -60,14 +61,16 @@ function deriveName(c: DiscoveredCron): string {
         .slice(0, 50);
     }
   }
-  return `Cron ${c.cronId.replace(/^cron_/, '').slice(0, 12)}`;
+  return `Cron ${c.cronId.slice(0, 12)}`;
 }
 
 /**
  * POST /api/admin/agents/sync
- * Scans `hermes cron list` and imports any cron whose cronId isn't
- * already tracked by a dashboard Agent row. Returns counts + the raw
- * stdout so the UI can show what Hermes actually reported.
+ * Scans `hermes cron list` and imports any cron whose cronId isn't already
+ * tracked by a dashboard Agent row. Hermes' cron list output doesn't
+ * include the original natural-language task verbatim, so we synthesise
+ * a task description from name/skills/workdir so the owner sees something
+ * recognisable on the card.
  */
 export async function POST() {
   const auth = await requireOwner();
@@ -90,13 +93,19 @@ export async function POST() {
   const importedRows: { slug: string; name: string; cronId: string }[] = [];
 
   for (const c of r.crons) {
-    if (trackedIds.has(c.cronId)) {
-      skipped++;
-      continue;
-    }
+    if (trackedIds.has(c.cronId)) { skipped++; continue; }
+
     const style = styleForCronId(c.cronId);
     const slug = deriveSlug(c, allSlugs);
     const name = deriveName(c);
+
+    // Build a meaningful task description from what `cron list` gave us.
+    const taskParts: string[] = [];
+    if (c.task) taskParts.push(c.task);
+    if (c.skills) taskParts.push(`Skills: ${c.skills}`);
+    if (c.workdir) taskParts.push(`Workdir: ${c.workdir}`);
+    const task = taskParts.length ? taskParts.join(' · ') : c.raw;
+
     try {
       const row = await prisma.agent.create({
         data: {
@@ -109,15 +118,16 @@ export async function POST() {
           status: 'idle',
           uptimeSince: new Date(),
           schedule: c.schedule,
-          task: c.task,
+          task,
+          skill: c.skills,
           cronId: c.cronId,
-          enabled: true,
+          enabled: c.enabled ?? true,
+          lastActionAt: c.lastRun ? safeDate(c.lastRun) : null,
         },
       });
       imported++;
       importedRows.push({ slug: row.slug, name: row.name, cronId: c.cronId });
     } catch (e) {
-      // unique constraint (slug collision after retries) — skip rather than fail
       skipped++;
     }
   }
@@ -130,4 +140,11 @@ export async function POST() {
     importedRows,
     raw_stdout: r.raw_stdout,
   });
+}
+
+function safeDate(s: string): Date | null {
+  // Strip trailing "  ok" / "  failed" annotations Hermes adds to Last run
+  const cleaned = s.replace(/\s+(ok|fail(ed)?|error)\s*$/i, '').trim();
+  const d = new Date(cleaned);
+  return Number.isFinite(d.getTime()) ? d : null;
 }
