@@ -115,59 +115,48 @@ app
      */
     const wss = new WebSocketServer({ noServer: true });
 
-    const tlog = (...args: unknown[]) => console.log('[ws-term]', ...args);
+    // Errors-only logging now that the WS upgrade is known to work.
+    const twarn = (...args: unknown[]) => console.warn('[ws-term]', ...args);
 
     httpServer.on('upgrade', async (req, socket, head) => {
       const url = parseCookie(req.url ?? '/', true);
-      // Let Socket.io handle its own upgrades
       if ((url.pathname ?? '').startsWith('/socket.io/')) return;
-      if (url.pathname !== '/api/admin/term') {
-        tlog('ignored upgrade (path)', url.pathname);
-        return;
-      }
-
-      tlog('upgrade received', { url: req.url, host: req.headers.host });
+      if (url.pathname !== '/api/admin/term') return;
 
       if (!BRIDGE_TOKEN) {
-        tlog('rejecting: HERMES_BRIDGE_TOKEN not set');
+        twarn('rejecting: HERMES_BRIDGE_TOKEN not set');
         socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\nHERMES_BRIDGE_TOKEN not set');
         socket.destroy();
         return;
       }
 
       const auth = await isOwnerRequest(req);
-      tlog('auth check', auth);
       if (!auth.ok) {
-        tlog('rejecting: not owner -> 403');
+        twarn('rejecting upgrade:', auth.reason);
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }
 
       const upstreamUrl = bridgeWsUrl(req.url?.split('?')[1] ?? '');
-      tlog('opening upstream WS', upstreamUrl.replace(/token=[^&]+/, 'token=<set>'));
-
       wss.handleUpgrade(req, socket, head, (clientWs) => {
-        tlog('client WS upgraded successfully');
         const upstream = new WebSocket(upstreamUrl);
         let upstreamOpen = false;
         const pendingFromClient: any[] = [];
 
         upstream.on('open', () => {
           upstreamOpen = true;
-          tlog('upstream WS open — piping');
           for (const m of pendingFromClient) upstream.send(m);
           pendingFromClient.length = 0;
         });
         upstream.on('message', (data, isBinary) => {
           if (clientWs.readyState === clientWs.OPEN) clientWs.send(data, { binary: isBinary });
         });
-        upstream.on('close', (code, reason) => {
-          tlog('upstream WS closed', code, reason?.toString());
+        upstream.on('close', () => {
           if (clientWs.readyState === clientWs.OPEN) clientWs.close();
         });
         upstream.on('error', (err) => {
-          tlog('upstream WS error', err.message);
+          twarn('upstream WS error:', err.message);
           if (clientWs.readyState === clientWs.OPEN) {
             clientWs.send(`\r\n\x1b[31m[bridge unreachable: ${err.message}]\x1b[0m\r\n`);
             clientWs.close();
@@ -178,14 +167,8 @@ app
           if (upstreamOpen) upstream.send(data, { binary: isBinary });
           else pendingFromClient.push(data);
         });
-        clientWs.on('close', (code) => {
-          tlog('client WS closed', code);
-          try { upstream.close(); } catch {}
-        });
-        clientWs.on('error', (err) => {
-          tlog('client WS error', err.message);
-          try { upstream.close(); } catch {}
-        });
+        clientWs.on('close', () => { try { upstream.close(); } catch {} });
+        clientWs.on('error', () => { try { upstream.close(); } catch {} });
       });
     });
 

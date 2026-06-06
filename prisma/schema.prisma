@@ -18,6 +18,17 @@ model Agent {
   status       String     @default("idle")
   lastActionAt DateTime?
   uptimeSince  DateTime?
+
+  // Hermes cronjob integration. In Hermes' model an "agent" is a scheduled
+  // task using a skill — so each dashboard Agent maps to a `hermes cron`
+  // entry. cronId is what `hermes cron add` returns and what we use to
+  // enable/disable/remove later.
+  schedule     String?
+  task         String?
+  skill        String?
+  cronId       String?
+  enabled      Boolean    @default(true)
+
   createdAt    DateTime   @default(now())
   events       Event[]
   drafts       Draft[]
