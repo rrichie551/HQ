@@ -290,6 +290,203 @@ export async function writeSoul(content: string): Promise<{ ok: boolean }> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Agent scaffolding                                                   */
+/* ------------------------------------------------------------------ */
+
+export type AgentScaffoldInput = {
+  slug: string;
+  name: string;
+  role: string;
+  icon?: string;
+  color?: string;
+  tint?: string;
+};
+
+export type AgentScaffoldResult = {
+  skillCreated: { path: string; alreadyExisted: boolean } | null;
+  configUpdated: { path: string; action: 'inserted' | 'replaced' | 'block-created' } | null;
+  notes: string[];
+};
+
+function defaultSkillTemplate(a: AgentScaffoldInput): string {
+  return [
+    `# ${a.name}`,
+    '',
+    `**Slug:** \`${a.slug}\`  `,
+    `**Role:** ${a.role}`,
+    '',
+    '## When to use',
+    '',
+    `Use this agent for tasks that fall under "${a.role}". Hermes will pick the right one based on the incoming task description.`,
+    '',
+    '## Behaviour',
+    '',
+    `- Identify the request type and respond in the agent's voice.`,
+    `- Always log meaningful actions so the Mission Control dashboard reflects them.`,
+    `- Hand off to another agent if the task is outside this scope.`,
+    '',
+    '## Examples',
+    '',
+    '- _Add concrete few-shot examples here — what input looks like, and what the response should be._',
+    '',
+    '## Notes for the operator',
+    '',
+    '- This file was scaffolded automatically by Mission Control. Edit freely.',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Scaffold a new agent across Hermes' install:
+ *   1. Write skills/${slug}.md with a starter template (unless it exists).
+ *   2. Insert/replace the agent in config.yaml's `agents:` block.
+ *
+ * Best-effort and non-destructive: if Hermes isn't installed yet, this returns
+ * null for the missing piece and the API still creates the dashboard row.
+ */
+export async function scaffoldAgent(a: AgentScaffoldInput): Promise<AgentScaffoldResult> {
+  const notes: string[] = [];
+  let skillCreated: AgentScaffoldResult['skillCreated'] = null;
+  let configUpdated: AgentScaffoldResult['configUpdated'] = null;
+
+  if (!(await hermesInstalled())) {
+    notes.push(`Hermes not installed at ${hermesRoot()} — only the dashboard row was created. Run hermes setup, then re-scaffold from /admin/agents.`);
+    return { skillCreated, configUpdated, notes };
+  }
+
+  // 1. Skill file
+  const skillsPath = path.join(skillsDir(), `${a.slug}.md`);
+  if (await exists(skillsPath)) {
+    skillCreated = { path: skillsPath, alreadyExisted: true };
+    notes.push(`Skill file already existed at ${skillsPath} — left untouched.`);
+  } else {
+    try {
+      await fs.mkdir(skillsDir(), { recursive: true });
+      await fs.writeFile(skillsPath, defaultSkillTemplate(a), 'utf-8');
+      skillCreated = { path: skillsPath, alreadyExisted: false };
+    } catch (e) {
+      notes.push(`Skill file write failed: ${(e as Error).message}`);
+    }
+  }
+
+  // 2. config.yaml `agents:` block
+  const configPath = path.join(hermesRoot(), 'config.yaml');
+  if (!(await exists(configPath))) {
+    // Create a minimal config with just the agents block
+    const block = renderAgentBlock(a, 0) + '\n';
+    await fs.writeFile(configPath, `agents:\n${block}`, 'utf-8');
+    configUpdated = { path: configPath, action: 'block-created' };
+  } else {
+    const original = await fs.readFile(configPath, 'utf-8');
+    const upserted = upsertAgentInYaml(original, a);
+    if (upserted.changed) {
+      await fs.writeFile(configPath, upserted.content, 'utf-8');
+      configUpdated = { path: configPath, action: upserted.action };
+    } else {
+      notes.push(`config.yaml already has an identical entry for ${a.slug} — no change.`);
+    }
+  }
+
+  return { skillCreated, configUpdated, notes };
+}
+
+function renderAgentBlock(a: AgentScaffoldInput, indent: number): string {
+  const pad = ' '.repeat(indent);
+  const itemPad = ' '.repeat(indent + 2);
+  const out = [
+    `${pad}- slug: ${a.slug}`,
+    `${itemPad}name: ${yamlString(a.name)}`,
+    `${itemPad}role: ${yamlString(a.role)}`,
+  ];
+  if (a.icon) out.push(`${itemPad}icon: ${a.icon}`);
+  if (a.color) out.push(`${itemPad}color: "${a.color}"`);
+  if (a.tint) out.push(`${itemPad}tint: "${a.tint}"`);
+  return out.join('\n');
+}
+
+function yamlString(s: string): string {
+  // Quote if it contains anything YAML-special
+  if (/[:#\n"']/.test(s)) return JSON.stringify(s);
+  return s;
+}
+
+/**
+ * Best-effort YAML upsert: finds an `agents:` block, replaces the matching
+ * slug entry if present, otherwise appends a new entry before the next
+ * top-level key (or end-of-file). If no `agents:` block exists, appends one
+ * to the bottom of the file. Avoids reformatting the rest of the YAML.
+ */
+function upsertAgentInYaml(original: string, a: AgentScaffoldInput): { content: string; changed: boolean; action: 'inserted' | 'replaced' | 'block-created' } {
+  const lines = original.split('\n');
+  // Locate the `agents:` block range
+  let agentsStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^agents:\s*$/.test(lines[i])) { agentsStart = i; break; }
+  }
+  if (agentsStart === -1) {
+    // No block — append at end
+    const trailingNl = original.endsWith('\n') ? '' : '\n';
+    const block = `agents:\n${renderAgentBlock(a, 0)}\n`;
+    return { content: original + trailingNl + block, changed: true, action: 'block-created' };
+  }
+
+  // Find the end of the block: first non-indented, non-blank line after agentsStart
+  let blockEnd = lines.length;
+  for (let i = agentsStart + 1; i < lines.length; i++) {
+    const ln = lines[i];
+    if (ln.trim() === '') continue;
+    if (!/^\s/.test(ln)) { blockEnd = i; break; }
+  }
+
+  // Within the block, scan for an existing entry whose `slug:` matches
+  let entryStart = -1;
+  let entryEnd = -1;
+  for (let i = agentsStart + 1; i < blockEnd; i++) {
+    if (/^\s*-\s+/.test(lines[i])) {
+      // start of an item
+      // find this item's end
+      let end = blockEnd;
+      for (let j = i + 1; j < blockEnd; j++) {
+        if (/^\s*-\s+/.test(lines[j])) { end = j; break; }
+        if (j === blockEnd - 1) end = blockEnd;
+      }
+      // collect this item's text
+      const item = lines.slice(i, end).join('\n');
+      const slugMatch = /\bslug:\s*([^\s#]+)/.exec(item);
+      const slug = slugMatch?.[1]?.replace(/^["']|["']$/g, '');
+      if (slug === a.slug) {
+        entryStart = i;
+        entryEnd = end;
+        break;
+      }
+      i = end - 1; // jump
+    }
+  }
+
+  // Figure out the indent used inside the agents block (first list item)
+  let listIndent = 2;
+  for (let i = agentsStart + 1; i < blockEnd; i++) {
+    const m = /^(\s*)-\s+/.exec(lines[i]);
+    if (m) { listIndent = m[1].length; break; }
+  }
+
+  const rendered = renderAgentBlock(a, listIndent).split('\n');
+
+  if (entryStart !== -1) {
+    // Replace the matched item
+    const before = lines.slice(0, entryStart);
+    const after = lines.slice(entryEnd);
+    return { content: [...before, ...rendered, ...after].join('\n'), changed: true, action: 'replaced' };
+  }
+  // Insert a new item at the END of the block (before the next top-level key)
+  const before = lines.slice(0, blockEnd);
+  const after = lines.slice(blockEnd);
+  // Make sure the inserted block ends with a newline before the next section
+  const insertion = rendered;
+  return { content: [...before, ...insertion, ...after].join('\n'), changed: true, action: 'inserted' };
+}
+
+/* ------------------------------------------------------------------ */
 /* Crons (best-effort; Hermes' actual format may differ)               */
 /* ------------------------------------------------------------------ */
 

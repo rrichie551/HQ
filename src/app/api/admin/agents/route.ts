@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions, isOwner } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { scaffoldAgent } from '@/lib/hermes-fs';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,10 @@ export async function POST(req: NextRequest) {
   if (auth) return auth;
   const body = (await req.json().catch(() => null)) as Partial<{
     slug: string; name: string; role: string; icon: string; color: string; tint: string;
+    scaffold: boolean;
   }> | null;
   if (!body?.slug || !body.name) return NextResponse.json({ error: 'slug and name required' }, { status: 400 });
+
   const agent = await prisma.agent.upsert({
     where: { slug: body.slug },
     update: {
@@ -38,5 +41,24 @@ export async function POST(req: NextRequest) {
       status: 'idle', uptimeSince: new Date(),
     },
   });
-  return NextResponse.json(agent);
+
+  // Scaffold the matching skill + config.yaml entry unless the caller opts out.
+  // Defaults to true: creating an agent should usually mean Hermes can run it.
+  let scaffold = null as Awaited<ReturnType<typeof scaffoldAgent>> | null;
+  if (body.scaffold !== false) {
+    try {
+      scaffold = await scaffoldAgent({
+        slug: agent.slug,
+        name: agent.name,
+        role: agent.role,
+        icon: agent.icon,
+        color: agent.color,
+        tint: agent.tint,
+      });
+    } catch (e) {
+      scaffold = { skillCreated: null, configUpdated: null, notes: [`scaffold failed: ${(e as Error).message}`] };
+    }
+  }
+
+  return NextResponse.json({ ...agent, scaffold });
 }

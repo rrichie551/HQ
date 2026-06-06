@@ -19,6 +19,10 @@ services:
       # single-VPS installs). Falls back gracefully if the path doesn't exist —
       # the admin UI will just show an empty/uninstalled state.
       - ${HERMES_DIR:-/root/.hermes}:/hermes
+    extra_hosts:
+      # Reach the Hermes Bridge service running on the host (systemd) at
+      # http://host.docker.internal:7181 from inside the container.
+      - "host.docker.internal:host-gateway"
     expose:
       - "3000"
 

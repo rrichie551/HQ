@@ -122,6 +122,38 @@ See [`docs/hermes_integration_patch.md`](docs/hermes_integration_patch.md) for
 the exact changes to Hermes' system prompt and skill files needed to wire
 Hermes up to the dashboard's ingest API.
 
+### Owner / Admin features
+
+Logging in with `OWNER_PASSWORD` (separate from `DASHBOARD_PASSWORD`) unlocks
+`/admin/*`:
+
+| Route | What it does |
+|---|---|
+| `/admin` | Status of the local `~/.hermes/` install |
+| `/admin/agents` | Create / edit / delete agents — also scaffolds a starter skill file and updates `config.yaml`'s `agents:` block in one click |
+| `/admin/skills` | Edit any file under `~/.hermes/skills/` |
+| `/admin/memory` | Edit `MEMORY.md`, `USER.md` |
+| `/admin/config` | Edit `~/.hermes/config.yaml` |
+| `/admin/crons` | Edit `crons.yaml`, or — if the Hermes Bridge is installed — run `hermes cron list/add` live |
+
+### Hermes Bridge (optional)
+
+`/admin/crons` can either edit `crons.yaml` directly or invoke `hermes cron`
+on the host. The host-side bridge enables the latter:
+
+```bash
+# After Mission Control's install.sh:
+sudo ./scripts/install-hermes-bridge.sh
+```
+
+This installs a small Node HTTP service as a systemd unit (`hermes-bridge`)
+that runs whitelisted `hermes` subcommands (`cron list/add/remove`, `doctor`,
+`tools list`, `model list`) and returns their output to the dashboard. The
+dashboard reaches it via `host.docker.internal:7181`.
+
+The bridge is fully optional. Without it, the admin UI falls back to direct
+file editing.
+
 ---
 
 ## Deployment

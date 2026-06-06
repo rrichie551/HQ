@@ -88,10 +88,14 @@ HERMES_DIR="${HERMES_DIR}"
 
 DATABASE_URL="file:./data/db.sqlite"
 PORT=3000
+
+HERMES_BRIDGE_URL="http://host.docker.internal:7181"
+HERMES_BRIDGE_TOKEN="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40 || true)"
+HERMES_BRIDGE_PORT=7181
 EOF
 
   echo
-  echo "==> Wrote .env"
+  echo "==> Wrote .env (HERMES_BRIDGE_TOKEN auto-generated)"
 fi
 
 mkdir -p data
@@ -125,5 +129,10 @@ cat <<EOM
 
   Slack interactive callback URL:
     http://${IP}:4180/api/slack/callback
+
+  Optional — install the Hermes Bridge (lets /admin/crons run
+  \`hermes cron list/add/remove\` live on the host):
+
+    sudo ./scripts/install-hermes-bridge.sh
 ==============================================================
 EOM

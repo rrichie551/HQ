@@ -29,8 +29,11 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [scaffoldNote, setScaffoldNote] = useState<string | null>(null);
+
   async function saveAgent(a: Agent, isNew: boolean) {
     setErr(null);
+    setScaffoldNote(null);
     const url = isNew ? '/api/admin/agents' : `/api/admin/agents/${encodeURIComponent(a.slug)}`;
     const method = isNew ? 'POST' : 'PATCH';
     const res = await fetch(url, {
@@ -51,6 +54,21 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
     });
     setEditing(null);
     setCreating(false);
+
+    if (isNew && saved.scaffold) {
+      const parts: string[] = [];
+      if (saved.scaffold.skillCreated) {
+        parts.push(saved.scaffold.skillCreated.alreadyExisted
+          ? `skill kept: ${saved.scaffold.skillCreated.path}`
+          : `skill scaffolded: ${saved.scaffold.skillCreated.path}`);
+      }
+      if (saved.scaffold.configUpdated) {
+        parts.push(`config.yaml ${saved.scaffold.configUpdated.action}`);
+      }
+      if (saved.scaffold.notes?.length) parts.push(...saved.scaffold.notes);
+      setScaffoldNote(parts.join(' · '));
+      setTimeout(() => setScaffoldNote(null), 8000);
+    }
   }
 
   async function deleteAgent(slug: string) {
@@ -66,6 +84,11 @@ export function AgentsAdminClient({ initial }: { initial: Agent[] }) {
   return (
     <div>
       {err && <div style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 8 }}>{err}</div>}
+      {scaffoldNote && (
+        <div style={{ background: 'var(--running-tint)', border: '1px solid #CBEBD6', color: '#15803D', borderRadius: 8, padding: '10px 14px', fontSize: 12, marginBottom: 12 }}>
+          ✓ {scaffoldNote}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button className="btn btn-primary" onClick={() => { setEditing({ slug: '', name: '', role: '', icon: 'activity', color: '#C0603C', tint: '#F6E9E2', status: 'idle' }); setCreating(true); }}>
