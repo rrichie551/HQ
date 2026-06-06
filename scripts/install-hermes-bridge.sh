@@ -93,6 +93,28 @@ REPO_DIR=$(pwd)
 RUN_AS=${SUDO_USER:-root}
 UNIT_PATH=/etc/systemd/system/hermes-bridge.service
 
+step "installing host npm deps (ws, node-pty)"
+# The bridge uses node-pty for the chat terminal and ws for WebSockets.
+# These need to live on the host (the dashboard's node_modules in Docker
+# can't be reused because node-pty is a native module compiled per OS/arch).
+NPM_BIN=""
+NPM_CANDS=( /root/.local/bin/npm /usr/local/bin/npm /usr/bin/npm "${HOME}/.local/bin/npm" )
+NPM_BIN=$(find_bin npm "${NPM_CANDS[@]}" || true)
+if [ -z "${NPM_BIN}" ]; then
+  # npm usually ships next to node
+  if [ -x "${NODE_BIN%/node}/npm" ]; then NPM_BIN="${NODE_BIN%/node}/npm"; fi
+fi
+if [ -z "${NPM_BIN}" ]; then
+  die "npm not found on host. Install it (apt install -y npm) or use the npm bundled with your Node install."
+fi
+echo "    npm: ${NPM_BIN} ($("${NPM_BIN}" --version))"
+if ! command -v g++ >/dev/null 2>&1 && ! command -v make >/dev/null 2>&1; then
+  echo "    note: build tools missing. If node-pty install fails, run:" >&2
+  echo "          apt install -y build-essential python3" >&2
+fi
+( cd "${REPO_DIR}" && "${NPM_BIN}" install --omit=dev --no-audit --no-fund ws node-pty 2>&1 | tail -10 )
+echo "    ✓ host deps installed under ${REPO_DIR}/node_modules"
+
 step "writing systemd unit at ${UNIT_PATH}"
 cat > "${UNIT_PATH}" <<EOF
 [Unit]

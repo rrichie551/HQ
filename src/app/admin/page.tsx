@@ -4,6 +4,7 @@ import { AdminNav } from '@/components/AdminNav';
 import { getClientConfig } from '@/lib/client-config';
 import { getHermesStatus } from '@/lib/hermes-fs';
 import { prisma } from '@/lib/db';
+import { InstallApprovalSkillButton } from './InstallApprovalSkillButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,15 +82,26 @@ export default async function AdminOverviewPage() {
             </div>
           </div>
 
+          <div className="draft-section" style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-3)', margin: '0 0 12px' }}>
+              Approval routing
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '0 0 12px' }}>
+              Installs <code>mission-control-approval.md</code> into <code>~/.hermes/skills/</code> — teaches Hermes to route customer-facing drafts through the dashboard's approval queue (the kanban + Slack ping) instead of sending directly. Safe to re-run; overwrites with current settings.
+            </p>
+            <InstallApprovalSkillButton />
+          </div>
+
           <div className="draft-section">
             <h3 style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-3)', margin: '0 0 12px' }}>
               What you can do here
             </h3>
             <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, fontSize: 13, color: 'var(--text-2)' }}>
+              <li><b>Chat</b> — talk to Hermes in the dashboard — same TUI as the terminal.</li>
               <li><b>Agents</b> — see what's defined for this client, edit names/roles, pause/resume.</li>
-              <li><b>Skills</b> — read, edit, and create files under <code>~/.hermes/skills/</code>.</li>
+              <li><b>Skills</b> — read, edit, install, and create files under <code>~/.hermes/skills/</code>.</li>
               <li><b>Memory</b> — edit <code>MEMORY.md</code> and <code>USER.md</code> directly.</li>
-              <li><b>Crons</b> — view scheduled jobs Hermes runs (if defined in a config file).</li>
+              <li><b>Crons</b> — view scheduled jobs Hermes runs.</li>
               <li><b>Config</b> — inspect <code>config.yaml</code> for this Hermes install.</li>
             </ul>
           </div>
