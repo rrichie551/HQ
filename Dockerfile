@@ -5,7 +5,10 @@ RUN apk add --no-cache openssl
 # ---------- deps ----------
 FROM base AS deps
 COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
+# Skip optional deps — node-pty is optional because the bridge runs on the
+# HOST (not in this container) and it's a native module needing Python +
+# build tools. Installing it here would fail and isn't needed.
+RUN npm install --no-audit --no-fund --omit=optional
 
 # ---------- builder ----------
 FROM base AS builder

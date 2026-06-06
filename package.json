@@ -20,13 +20,15 @@
     "bcryptjs": "^2.4.3",
     "next": "14.2.18",
     "next-auth": "^4.24.10",
-    "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "ws": "^8.18.0",
     "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
