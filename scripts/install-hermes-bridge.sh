@@ -19,9 +19,16 @@ step "preflight"
 echo "    cwd: $(pwd)"
 
 step "reading .env"
-TOKEN=$(grep -E '^HERMES_BRIDGE_TOKEN=' .env | head -1 | sed 's/^HERMES_BRIDGE_TOKEN=//; s/^"//; s/"$//')
-HERMES_DIR=$(grep -E '^HERMES_DIR=' .env | head -1 | sed 's/^HERMES_DIR=//; s/^"//; s/"$//')
-BRIDGE_PORT=$(grep -E '^HERMES_BRIDGE_PORT=' .env | head -1 | sed 's/^HERMES_BRIDGE_PORT=//; s/^"//; s/"$//')
+# Note the `|| true` on each pipeline — with `set -euo pipefail` enabled,
+# a grep that doesn't match returns exit 1 and aborts the whole script
+# even when the variable is legitimately optional (e.g. HERMES_DIR may
+# not be set; we default to /root/.hermes a few lines down).
+read_env() {
+  grep -E "^$1=" .env 2>/dev/null | head -1 | sed "s/^$1=//; s/^\"//; s/\"\$//" || true
+}
+TOKEN=$(read_env HERMES_BRIDGE_TOKEN)
+HERMES_DIR=$(read_env HERMES_DIR)
+BRIDGE_PORT=$(read_env HERMES_BRIDGE_PORT)
 BRIDGE_PORT=${BRIDGE_PORT:-7181}
 
 if [ -z "${TOKEN}" ]; then
